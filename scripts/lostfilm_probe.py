@@ -15,6 +15,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.models import LostfilmSettings  # noqa: E402
+from app.sources.base import SourceError  # noqa: E402
 from app.sources.lostfilm import LostfilmSource  # noqa: E402
 
 MIRRORS = ["https://www.lostfilm.download", "https://www.lostfilm.tv"]
@@ -71,6 +72,8 @@ async def main() -> None:
         print(f"7) .torrent: {len(torrent.content)} байт, bencode: {'да — УСПЕХ' if bencode else 'НЕТ — это не торрент!'}")
         if not bencode:
             print("   первые 200 байт ответа:", torrent.content[:200])
+    except SourceError as e:
+        print(f"ОШИБКА ИСТОЧНИКА: {e}")
     finally:
         await src.close()
 
