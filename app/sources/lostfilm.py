@@ -36,12 +36,13 @@ class LostfilmSource:
     async def close(self) -> None:
         await self._client.aclose()
 
-    def extract_slug(self, url: str) -> str:
-        m = re.search(r"/series/([^/?#]+)", url)
+    def parse_url(self, url: str) -> tuple[str, int | None]:
+        m = re.search(r"/series/([^/?#]+)(?:/season_(\d+))?", url)
         if not m:
             raise SourceError(
                 "Не похоже на ссылку LostFilm: ожидаю …/series/<имя-сериала>/…")
-        return m.group(1)
+        season = int(m.group(2)) if m.group(2) else None
+        return m.group(1), season
 
     # --- HTTP с перебором зеркал ---------------------------------------
 

@@ -19,8 +19,9 @@ class FoundEpisode:
 class Source(Protocol):
     name: str
 
-    def extract_slug(self, url: str) -> str:
-        """Достаёт slug сериала из любой вставленной пользователем ссылки."""
+    def parse_url(self, url: str) -> tuple[str, int | None]:
+        """Достаёт из вставленной пользователем ссылки slug сериала и,
+        если ссылка ведёт на сезон, его номер."""
         ...
 
     async def list_episodes(self, slug: str, season: int) -> list[FoundEpisode]:

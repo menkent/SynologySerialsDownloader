@@ -48,13 +48,17 @@ async def index(request: Request):
 
 @router.post("/subscriptions")
 async def add_subscription(request: Request, url: str = Form(...),
-                           season: int = Form(...), folder: str = Form(...),
+                           season: str = Form(""), folder: str = Form(""),
                            title: str = Form("")):
     c = _ctx(request)
     source = c["sources"]["lostfilm"]
-    slug = source.extract_slug(url.strip())
-    sub = Subscription(slug=slug, title=title.strip() or slug,
-                       season=season, folder=folder.strip())
+    slug, url_season = source.parse_url(url.strip())
+    # Ручной ввод переопределяет то, что достали из ссылки.
+    season_num = int(season) if season.strip() else url_season
+    if season_num is None:
+        raise HTTPException(400, "Сезон не указан ни в ссылке, ни в поле «Сезон»")
+    sub = Subscription(slug=slug, title=title.strip() or slug, season=season_num,
+                       folder=folder.strip() or f"{slug}_S{season_num:02d}")
     async with c["store"].lock:
         c["store"].state.subscriptions.append(sub)
         await c["store"].save()
