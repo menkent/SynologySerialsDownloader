@@ -1,9 +1,19 @@
 import json
 import logging
+import re
 
 import httpx
 
 log = logging.getLogger(__name__)
+
+_VOLUME_PREFIX_RE = re.compile(r"^volume\d+/")
+
+
+def normalize_destination(path: str) -> str:
+    """Приводит путь к виду, который ждут DS и FileStation: относительно
+    общей папки, без ведущего слэша и без префикса /volumeN
+    (пользователи копируют полный путь из File Station)."""
+    return _VOLUME_PREFIX_RE.sub("", path.strip().strip("/"))
 
 # Коды DSM "сессия невалидна" — на них перелогиниваемся один раз.
 _SESSION_ERRORS = {105, 106, 107, 119}
@@ -104,9 +114,16 @@ class SynologyClient:
         parts = destination.strip("/").split("/")
         if len(parts) < 2:
             return  # общая папка верхнего уровня должна существовать сама
-        await self._call("/webapi/entry.cgi", params={
-            "api": "SYNO.FileStation.CreateFolder", "version": "2", "method": "create",
-            "folder_path": json.dumps(["/" + "/".join(parts[:-1])]),
-            "name": json.dumps([parts[-1]]),
-            "force_parent": "true",
-        })
+        try:
+            await self._call("/webapi/entry.cgi", params={
+                "api": "SYNO.FileStation.CreateFolder", "version": "2", "method": "create",
+                "folder_path": json.dumps(["/" + "/".join(parts[:-1])]),
+                "name": json.dumps([parts[-1]]),
+                "force_parent": "true",
+            })
+        except SynologyError as e:
+            raise SynologyError(
+                f"{e}. Подсказка: путь должен быть относительно общей папки "
+                f"(например common/Downloads/Serials — без /volume1 и без ведущего "
+                f"слэша), а у пользователя DSM — права на File Station и эту папку"
+            ) from e

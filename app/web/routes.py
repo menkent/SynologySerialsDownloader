@@ -138,7 +138,8 @@ async def save_settings(request: Request,
     store = request.app.state.store
     async with store.lock:
         s = store.state.settings
-        s.base_destination = base_destination.strip().strip("/")
+        from ..synology import normalize_destination
+        s.base_destination = normalize_destination(base_destination)
         s.quality_priority = [q.strip() for q in quality_priority.split(",") if q.strip()]
         s.check_interval_hours = max(1, check_interval_hours)
         s.lostfilm.cookies = lostfilm_cookies.strip()

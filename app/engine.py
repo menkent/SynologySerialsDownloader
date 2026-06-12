@@ -4,7 +4,7 @@ import logging
 from .models import Episode, EpisodeStatus, Subscription, SubscriptionStatus, now_iso
 from .sources.base import Source
 from .storage import Store
-from .synology import SynologyClient, SynologyError
+from .synology import SynologyClient, SynologyError, normalize_destination
 
 log = logging.getLogger(__name__)
 
@@ -85,7 +85,9 @@ class Engine:
         """Найден → В очереди: забрать торрент у источника, отдать в DS."""
         source = self.sources[sub.source]
         settings = self.store.state.settings
-        destination = f"{settings.base_destination.strip('/')}/{sub.folder.strip('/')}"
+        # Нормализация спасает и старые настройки, где путь сохранён с /volume1.
+        destination = normalize_destination(
+            f"{settings.base_destination}/{sub.folder.strip('/')}")
         try:
             torrent, filename, quality = await source.fetch_torrent(
                 sub.slug, sub.season, ep.number, settings.quality_priority)
