@@ -24,3 +24,5 @@ jobs:
           push: true
           platforms: linux/amd64   # DS923+ (Ryzen) — только amd64
           tags: ghcr.io/menkent/synologyserialsdownloader:latest
+          build-args: |
+            GIT_SHA=${{ github.sha }}

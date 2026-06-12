@@ -5,6 +5,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY app ./app
 
+ARG GIT_SHA=dev
+ENV APP_VERSION=$GIT_SHA
 ENV APP_DATA_DIR=/data
 VOLUME /data
 EXPOSE 8000

@@ -23,6 +23,9 @@ EP_STATUS_RU = {
 }
 templates.env.globals.update(sub_status_ru=SUB_STATUS_RU, ep_status_ru=EP_STATUS_RU)
 
+import os  # noqa: E402
+templates.env.globals["app_version"] = os.environ.get("APP_VERSION", "dev")[:7]
+
 
 def _ctx(request: Request) -> dict:
     return {"store": request.app.state.store, "engine": request.app.state.engine,
