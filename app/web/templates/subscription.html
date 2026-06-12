@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}{{ sub.title }} — S{{ sub.season }}{% endblock %}
+{% block content %}
+<h1>{{ sub.title }} — сезон {{ sub.season }}
+  <span class="badge {{ sub.status.value }}">{{ sub_status_ru[sub.status] }}</span></h1>
+<p class="muted">
+  Источник: {{ sub.source }} / {{ sub.slug }} · Папка: {{ sub.folder }}
+  {% if sub.last_checked_at %} · Проверено: {{ sub.last_checked_at }}{% endif %}
+</p>
+{% if sub.last_error %}<div class="alert">Ошибка проверки: {{ sub.last_error }}</div>{% endif %}
+
+<p>
+  <form class="inline" method="post" action="/subscriptions/{{ sub.id }}/check"><button>Проверить сейчас</button></form>
+  {% if sub.status.value == "active" %}
+  <form class="inline" method="post" action="/subscriptions/{{ sub.id }}/status">
+    <input type="hidden" name="action" value="pause"><button>Пауза</button></form>
+  {% elif sub.status.value == "paused" %}
+  <form class="inline" method="post" action="/subscriptions/{{ sub.id }}/status">
+    <input type="hidden" name="action" value="resume"><button>Возобновить</button></form>
+  {% endif %}
+  {% if sub.status.value != "completed" %}
+  <form class="inline" method="post" action="/subscriptions/{{ sub.id }}/status">
+    <input type="hidden" name="action" value="complete"><button>Конец сезона</button></form>
+  {% endif %}
+  <form class="inline" method="post" action="/subscriptions/{{ sub.id }}/delete"
+        onsubmit="return confirm('Удалить подписку? Незавершённые закачки будут сняты, скачанные файлы останутся.')">
+    <button>Удалить</button></form>
+</p>
+
+<table>
+  <tr><th>Серия</th><th>Статус</th><th>Качество</th><th>Прогресс</th><th></th></tr>
+  {% for ep in sub.episodes | sort(attribute="number") %}
+  <tr>
+    <td>E{{ "%02d" | format(ep.number) }} {{ ep.title }}</td>
+    <td><span class="badge {{ ep.status.value }}">{{ ep_status_ru[ep.status] }}</span>
+        {% if ep.error %}<div class="muted">{{ ep.error }}</div>{% endif %}</td>
+    <td>{{ ep.quality or "—" }}</td>
+    <td>{% if ep.status.value == "queued" %}<progress max="100" value="{{ ep.progress }}"></progress> {{ ep.progress }}%
+        {% elif ep.status.value == "downloaded" %}100%{% else %}—{% endif %}</td>
+    <td>{% if ep.status.value == "error" %}
+      <form class="inline" method="post" action="/subscriptions/{{ sub.id }}/episodes/{{ ep.number }}/retry">
+        <button>Повторить</button></form>{% endif %}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="5" class="muted">Серии ещё не найдены — нажмите «Проверить сейчас».</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

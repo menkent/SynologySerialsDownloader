@@ -1,0 +1,14 @@
+# Пример для Container Manager (Projects) на DS923+.
+services:
+  serials-downloader:
+    image: ghcr.io/menkent/synologyserialsdownloader:latest
+    container_name: serials-downloader
+    restart: unless-stopped
+    ports:
+      - "8923:8000"   # веб-интерфейс: http://<NAS>:8923 (только LAN, наружу не пробрасывать)
+    environment:
+      SYNO_URL: "http://172.17.0.1:5000"  # DSM с точки зрения контейнера (gateway docker0)
+      SYNO_USERNAME: "serials-bot"
+      SYNO_PASSWORD: "***"
+    volumes:
+      - /volume1/homes/serials-bot/SynologySerialsDownloader:/data

@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Настройки{% endblock %}
+{% block content %}
+<h1>Настройки</h1>
+
+{% if lostfilm_ok is false %}
+<div class="alert">Cookie LostFilm невалиден — залогиньтесь на lostfilm.tv в браузере
+и вставьте свежую строку Cookie ниже.</div>
+{% endif %}
+
+<form method="post" action="/settings">
+  <h2>Общие</h2>
+  <p><label>Базовый путь на NAS<br>
+    <input name="base_destination" value="{{ settings.base_destination }}" size="40" required></label><br>
+    <span class="muted">Относительно общих папок, например video/Serials. Папка подписки создаётся внутри него.</span></p>
+  <p><label>Приоритет качества (через запятую)<br>
+    <input name="quality_priority" value="{{ settings.quality_priority | join(', ') }}" size="40" required></label><br>
+    <span class="muted">Метки как на LostFilm: 1080, MP4 (=720p), SD.</span></p>
+  <p><label>Интервал проверки источников, часов<br>
+    <input name="check_interval_hours" type="number" min="1" value="{{ settings.check_interval_hours }}" required></label></p>
+
+  <h2>LostFilm {% if lostfilm_ok %} <span class="badge downloaded">авторизован</span>{% endif %}</h2>
+  <p><label>Cookie (строка из DevTools после логина)<br>
+    <textarea name="lostfilm_cookies" rows="3" cols="70">{{ settings.lostfilm.cookies }}</textarea></label></p>
+  <p><label>Зеркала (по одному на строку, перебираются по порядку)<br>
+    <textarea name="lostfilm_mirrors" rows="3" cols="70">{{ settings.lostfilm.mirrors | join('\n') }}</textarea></label></p>
+
+  <p><button>Сохранить</button></p>
+</form>
+{% endblock %}

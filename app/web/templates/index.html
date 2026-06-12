@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Подписки</h1>
+
+<form class="add-form" method="post" action="/subscriptions">
+  <input name="url" placeholder="Ссылка на сериал (LostFilm)" size="34" required>
+  <input name="season" type="number" min="1" placeholder="Сезон" style="width:5.5rem" required>
+  <input name="folder" placeholder="Имя папки" size="18" required>
+  <input name="title" placeholder="Название (необязательно)" size="20">
+  <button>Добавить</button>
+  <span class="muted">Папка: {{ settings.base_destination }}/&lt;имя&gt;</span>
+</form>
+
+<table>
+  <tr><th>Сериал</th><th>Сезон</th><th>Папка</th><th>Серии</th><th>Статус</th></tr>
+  {% for sub in current %}
+  {% set done = sub.episodes | selectattr("status.value", "equalto", "downloaded") | list | length %}
+  <tr>
+    <td><a href="/subscriptions/{{ sub.id }}">{{ sub.title }}</a>
+      {% if sub.last_error %}<span class="badge error" title="{{ sub.last_error }}">!</span>{% endif %}
+    </td>
+    <td>{{ sub.season }}</td>
+    <td class="muted">{{ sub.folder }}</td>
+    <td>{{ done }} / {{ sub.episodes | length }}</td>
+    <td><span class="badge {{ sub.status.value }}">{{ sub_status_ru[sub.status] }}</span></td>
+  </tr>
+  {% else %}
+  <tr><td colspan="5" class="muted">Пока нет ни одной подписки — добавьте первую выше.</td></tr>
+  {% endfor %}
+</table>
+
+{% if archive %}
+<h2>Архив (завершённые)</h2>
+<table>
+  <tr><th>Сериал</th><th>Сезон</th><th>Папка</th><th>Серии</th></tr>
+  {% for sub in archive %}
+  <tr>
+    <td><a href="/subscriptions/{{ sub.id }}">{{ sub.title }}</a></td>
+    <td>{{ sub.season }}</td>
+    <td class="muted">{{ sub.folder }}</td>
+    <td>{{ sub.episodes | length }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+{% endblock %}
