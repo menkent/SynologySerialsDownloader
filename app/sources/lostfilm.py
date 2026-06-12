@@ -56,6 +56,12 @@ class LostfilmSource:
         h = {"User-Agent": _UA}
         cookies = self._settings().cookies.strip()
         if cookies:
+            try:
+                cookies.encode("ascii")
+            except UnicodeEncodeError:
+                raise SourceError(
+                    "Cookie LostFilm содержит не-ASCII символы (например «…») — "
+                    "похоже, вставлен не настоящий Cookie, а заготовка")
             h["Cookie"] = cookies
         return h
 
