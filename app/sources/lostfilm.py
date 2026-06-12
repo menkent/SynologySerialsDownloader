@@ -12,11 +12,14 @@
    со ссылками на .torrent — берём первое качество из приоритета.
 """
 
+import logging
 import re
 from typing import Callable
 
 import httpx
 from bs4 import BeautifulSoup
+
+log = logging.getLogger(__name__)
 
 from ..models import LostfilmSettings
 from .base import AuthError, FoundEpisode, SourceError
@@ -31,7 +34,10 @@ class LostfilmSource:
 
     def __init__(self, settings_getter: Callable[[], LostfilmSettings]):
         self._settings = settings_getter
-        self._client = httpx.AsyncClient(timeout=60, follow_redirects=True)
+        # Короткий connect-timeout: заблокированный домен должен отваливаться
+        # быстро, чтобы успеть перебрать остальные зеркала.
+        self._client = httpx.AsyncClient(
+            timeout=httpx.Timeout(30, connect=10), follow_redirects=True)
 
     async def close(self) -> None:
         await self._client.aclose()
@@ -54,17 +60,30 @@ class LostfilmSource:
         return h
 
     async def _get(self, path: str) -> httpx.Response:
-        last_error: Exception | None = None
+        errors: list[str] = []
         for mirror in self._settings().mirrors:
             try:
                 r = await self._client.get(mirror.rstrip("/") + path,
                                            headers=self._headers())
                 if r.status_code == 200:
                     return r
-                last_error = SourceError(f"{mirror}: HTTP {r.status_code}")
+                errors.append(f"{mirror}: HTTP {r.status_code} (итоговый URL {r.url})")
             except httpx.HTTPError as e:
-                last_error = e
-        raise SourceError(f"Все зеркала LostFilm недоступны: {last_error}")
+                # str(ReadTimeout) часто пустой — тип исключения обязателен.
+                errors.append(f"{mirror}: {type(e).__name__}: {e}".rstrip(": "))
+            log.warning("LostFilm %s: %s", path, errors[-1])
+        raise SourceError(f"Все зеркала LostFilm не отдали {path}: " + "; ".join(errors))
+
+    async def _fetch_external(self, url: str, what: str) -> httpx.Response:
+        """Запрос на внешний (не-зеркальный) домен цепочки v_search→каталог→.torrent."""
+        try:
+            r = await self._client.get(url, headers={"User-Agent": _UA})
+        except httpx.HTTPError as e:
+            raise SourceError(
+                f"Не удалось получить {what} ({url}): {type(e).__name__}: {e}".rstrip(": "))
+        if r.status_code != 200:
+            raise SourceError(f"{what}: HTTP {r.status_code} ({r.url})")
+        return r
 
     # --- Source protocol ------------------------------------------------
 
@@ -80,14 +99,14 @@ class LostfilmSource:
             raise SourceError(f"Серия S{season:02d}E{number:02d} не найдена на странице сериала")
 
         redirect_page = await self._get(f"/v_search.php?a={code}")
-        if "login" in str(redirect_page.url) or "Вам необходимо авторизоваться" in redirect_page.text:
+        if "/login" in str(redirect_page.url) or "Вам необходимо авторизоваться" in redirect_page.text:
             raise AuthError("Cookie LostFilm протух — обновите его в настройках")
         catalog_url = self._extract_catalog_url(redirect_page.text)
 
-        catalog = await self._client.get(catalog_url, headers={"User-Agent": _UA})
+        catalog = await self._fetch_external(catalog_url, "торрент-каталог")
         torrent_url, quality = self._pick_torrent(catalog.text, quality_priority)
 
-        torrent = await self._client.get(torrent_url, headers={"User-Agent": _UA})
+        torrent = await self._fetch_external(torrent_url, f".torrent ({quality})")
         if not torrent.content.startswith(b"d"):  # bencode всегда начинается с 'd'
             raise SourceError("Скачанный файл не похож на .torrent")
         filename = f"{slug}.S{season:02d}E{number:02d}.{quality}.torrent"
