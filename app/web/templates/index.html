@@ -8,9 +8,34 @@
   <input name="folder" placeholder="Имя папки" size="18">
   <input name="title" placeholder="Название" size="20">
   <button>Добавить</button>
-  <span class="muted">Сезон, папка и название необязательны: из …/series/X/season_1
-    выйдет папка X_S01 в {{ settings.base_destination }}/</span>
+  <span class="muted">Вставьте ссылку — сезон, папка и название подставятся сами
+    (папка попадёт в {{ settings.base_destination }}/)</span>
 </form>
+
+<script>
+(() => {
+  const form = document.querySelector('.add-form');
+  const f = name => form.querySelector(`[name=${name}]`);
+  // Поле, которое пользователь правил руками, больше не перезатираем.
+  for (const name of ['season', 'folder', 'title'])
+    f(name).addEventListener('input', e => { e.target.dataset.user = '1'; });
+
+  f('url').addEventListener('input', () => {
+    const m = f('url').value.match(/\/series\/([^\/?#]+)(?:\/season_(\d+))?/);
+    if (!m) return;
+    const slug = m[1];
+    const season = m[2] ? parseInt(m[2], 10) : null;
+    const set = (name, value) => {
+      if (!f(name).dataset.user) f(name).value = value;
+    };
+    set('title', slug);
+    if (season !== null) {
+      set('season', season);
+      set('folder', `${slug}_S${String(season).padStart(2, '0')}`);
+    }
+  });
+})();
+</script>
 
 <table>
   <tr><th>Сериал</th><th>Сезон</th><th>Папка</th><th>Серии</th><th>Статус</th></tr>
