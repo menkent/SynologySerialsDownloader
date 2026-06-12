@@ -113,11 +113,15 @@ class LostfilmSource:
         return torrent.content, filename, quality
 
     async def check_auth(self) -> bool:
+        if not self._settings().cookies.strip():
+            return False
         try:
             r = await self._get("/my/")
-            return "login" not in str(r.url)
         except SourceError:
             return False
+        # Неавторизованным /my/ отдаёт крошечную страницу-заглушку
+        # с meta-refresh на главную (URL при этом не меняется).
+        return "/login" not in str(r.url) and 'http-equiv="refresh"' not in r.text[:1500]
 
     # --- парсинг ----------------------------------------------------------
 
