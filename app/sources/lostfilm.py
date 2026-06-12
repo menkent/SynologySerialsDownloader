@@ -15,6 +15,7 @@
 import logging
 import re
 from typing import Callable
+from urllib.parse import urljoin
 
 import httpx
 from bs4 import BeautifulSoup
@@ -81,9 +82,16 @@ class LostfilmSource:
         raise SourceError(f"Все зеркала LostFilm не отдали {path}: " + "; ".join(errors))
 
     async def _fetch_external(self, url: str, what: str) -> httpx.Response:
-        """Запрос на внешний (не-зеркальный) домен цепочки v_search→каталог→.torrent."""
+        """Запрос по ссылке из цепочки v_search→каталог→.torrent.
+
+        Ссылка может вести как на зеркало (туда нужны куки), так и на
+        сторонний торрент-домен (туда куки не отправляем).
+        """
+        mirror_hosts = {httpx.URL(m).host for m in self._settings().mirrors}
+        headers = self._headers() if httpx.URL(url).host in mirror_hosts \
+            else {"User-Agent": _UA}
         try:
-            r = await self._client.get(url, headers={"User-Agent": _UA})
+            r = await self._client.get(url, headers=headers)
         except httpx.HTTPError as e:
             raise SourceError(
                 f"Не удалось получить {what} ({url}): {type(e).__name__}: {e}".rstrip(": "))
@@ -107,10 +115,13 @@ class LostfilmSource:
         redirect_page = await self._get(f"/v_search.php?a={code}")
         if "/login" in str(redirect_page.url) or "Вам необходимо авторизоваться" in redirect_page.text:
             raise AuthError("Cookie LostFilm протух — обновите его в настройках")
-        catalog_url = self._extract_catalog_url(redirect_page.text)
+        # Ссылки в цепочке бывают относительными — резолвим от страницы-источника.
+        catalog_url = urljoin(str(redirect_page.url),
+                              self._extract_catalog_url(redirect_page.text))
 
         catalog = await self._fetch_external(catalog_url, "торрент-каталог")
         torrent_url, quality = self._pick_torrent(catalog.text, quality_priority)
+        torrent_url = urljoin(str(catalog.url), torrent_url)
 
         torrent = await self._fetch_external(torrent_url, f".torrent ({quality})")
         if not torrent.content.startswith(b"d"):  # bencode всегда начинается с 'd'
@@ -154,7 +165,7 @@ class LostfilmSource:
     def _extract_catalog_url(html: str) -> str:
         soup = BeautifulSoup(html, "html.parser")
         # Страница v_search — это мини-редиректор: единственная ссылка/мета-refresh.
-        a = soup.find("a", href=re.compile(r"^https?://"))
+        a = soup.find("a", href=re.compile(r"^(https?://|/)"))
         if a:
             return a["href"]
         meta = soup.find("meta", attrs={"http-equiv": re.compile("refresh", re.I)})

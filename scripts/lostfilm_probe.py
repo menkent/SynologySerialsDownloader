@@ -59,12 +59,14 @@ async def main() -> None:
             print("   !! редирект на страницу логина — кука не принята")
             return
 
-        catalog_url = src._extract_catalog_url(page.text)
+        from urllib.parse import urljoin
+        catalog_url = urljoin(str(page.url), src._extract_catalog_url(page.text))
         print(f"5) торрент-каталог: {catalog_url}")
         catalog = await src._fetch_external(catalog_url, "торрент-каталог")
         print(f"   получен, {len(catalog.text)} байт")
 
         torrent_url, quality = src._pick_torrent(catalog.text, ["1080", "MP4", "SD"])
+        torrent_url = urljoin(str(catalog.url), torrent_url)
         print(f"6) выбрано качество {quality}: {torrent_url}")
 
         torrent = await src._fetch_external(torrent_url, ".torrent")
