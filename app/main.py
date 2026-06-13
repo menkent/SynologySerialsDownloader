@@ -1,7 +1,9 @@
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from . import config
 from .engine import Engine
@@ -37,4 +39,5 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Synology Serials Downloader", lifespan=lifespan)
+app.mount("/static", StaticFiles(directory=Path(__file__).parent / "web" / "static"), name="static")
 app.include_router(router)
