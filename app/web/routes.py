@@ -124,11 +124,20 @@ async def check_all(request: Request):
 @router.get("/settings")
 async def settings_page(request: Request):
     state = request.app.state.store.state
-    lostfilm_ok = await request.app.state.sources["lostfilm"].check_auth() \
-        if state.settings.lostfilm.cookies else None
+    # Статус cookie проверяем не здесь (это живой запрос к LostFilm на 5-7с),
+    # а отдельным запросом /settings/auth-status — страница рендерится сразу.
     return templates.TemplateResponse(request, "settings.html", {
-        "settings": state.settings, "lostfilm_ok": lostfilm_ok,
+        "settings": state.settings,
+        "has_cookies": bool(state.settings.lostfilm.cookies.strip()),
     })
+
+
+@router.get("/settings/auth-status")
+async def settings_auth_status(request: Request):
+    state = request.app.state.store.state
+    if not state.settings.lostfilm.cookies.strip():
+        return {"ok": None}
+    return {"ok": await request.app.state.sources["lostfilm"].check_auth()}
 
 
 @router.post("/settings")

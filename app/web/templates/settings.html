@@ -3,10 +3,8 @@
 {% block content %}
 <h1>Настройки</h1>
 
-{% if lostfilm_ok is false %}
-<div class="alert">Cookie LostFilm невалиден — залогиньтесь на lostfilm.tv в браузере
+<div id="auth-alert" class="alert" hidden>Cookie LostFilm невалиден — залогиньтесь на lostfilm.tv в браузере
 и вставьте свежую строку Cookie ниже.</div>
-{% endif %}
 
 <form method="post" action="/settings">
   <h2>Общие</h2>
@@ -19,7 +17,7 @@
   <p><label>Интервал проверки источников, часов<br>
     <input name="check_interval_hours" type="number" min="1" value="{{ settings.check_interval_hours }}" required></label></p>
 
-  <h2>LostFilm {% if lostfilm_ok %} <span class="badge downloaded">авторизован</span>{% endif %}</h2>
+  <h2>LostFilm <span id="auth-badge">{% if has_cookies %}<span class="badge">проверяю…</span>{% endif %}</span></h2>
   <p><label>Cookie (строка из DevTools после логина)<br>
     <textarea name="lostfilm_cookies" rows="3" cols="70">{{ settings.lostfilm.cookies }}</textarea></label></p>
   <p><label>Зеркала (по одному на строку, перебираются по порядку)<br>
@@ -27,4 +25,23 @@
 
   <p><button>Сохранить</button></p>
 </form>
+
+{% if has_cookies %}
+<script>
+fetch("/settings/auth-status").then(r => r.json()).then(d => {
+  const badge = document.getElementById("auth-badge");
+  if (d.ok === true) {
+    badge.innerHTML = '<span class="badge downloaded">авторизован</span>';
+  } else if (d.ok === false) {
+    badge.innerHTML = '<span class="badge error">не авторизован</span>';
+    document.getElementById("auth-alert").hidden = false;
+  } else {
+    badge.innerHTML = '';
+  }
+}).catch(() => {
+  document.getElementById("auth-badge").innerHTML =
+    '<span class="badge">проверка не удалась</span>';
+});
+</script>
+{% endif %}
 {% endblock %}
