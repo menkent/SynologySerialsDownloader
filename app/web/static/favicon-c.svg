@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <text x="31" y="34" text-anchor="middle" dominant-baseline="central"
+        font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif"
+        font-weight="800" font-size="40" letter-spacing="-3">
+    <tspan fill="#0b5ed7">S</tspan><tspan fill="#198754">D</tspan>
+  </text>
+</svg>

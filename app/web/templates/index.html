@@ -43,6 +43,8 @@
   {% set done = sub.episodes | selectattr("status.value", "equalto", "downloaded") | list | length %}
   <tr>
     <td><a href="/subscriptions/{{ sub.id }}">{{ sub.title }}</a>
+      <a class="ext" href="{{ source_url(sub) }}" target="_blank" rel="noopener"
+         title="Открыть на сайте">↗</a>
       {% if sub.last_error %}<span class="badge error" title="{{ sub.last_error }}">!</span>{% endif %}
     </td>
     <td>{{ sub.season }}</td>
@@ -61,7 +63,9 @@
   <tr><th>Сериал</th><th>Сезон</th><th>Папка</th><th>Серии</th></tr>
   {% for sub in archive %}
   <tr>
-    <td><a href="/subscriptions/{{ sub.id }}">{{ sub.title }}</a></td>
+    <td><a href="/subscriptions/{{ sub.id }}">{{ sub.title }}</a>
+      <a class="ext" href="{{ source_url(sub) }}" target="_blank" rel="noopener"
+         title="Открыть на сайте">↗</a></td>
     <td>{{ sub.season }}</td>
     <td class="muted">{{ sub.folder }}</td>
     <td>{{ sub.episodes | length }}</td>

@@ -51,6 +51,15 @@ class LostfilmSource:
         season = int(m.group(2)) if m.group(2) else None
         return m.group(1), season
 
+    def series_url(self, slug: str, season: int | None = None) -> str:
+        """Публичная ссылка на страницу сериала/сезона — для перехода из UI.
+
+        Базой берём первое настроенное зеркало (оно же доступно пользователю)."""
+        mirrors = self._settings().mirrors or ["https://www.lostfilm.tv"]
+        base = mirrors[0].rstrip("/")
+        path = f"/series/{slug}/season_{season}" if season else f"/series/{slug}"
+        return base + path
+
     # --- HTTP с перебором зеркал ---------------------------------------
 
     def _headers(self) -> dict:

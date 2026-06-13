@@ -2,6 +2,8 @@
 {% block title %}{{ sub.title }} — S{{ sub.season }}{% endblock %}
 {% block content %}
 <h1>{{ sub.title }} — сезон {{ sub.season }}
+  <a class="ext" href="{{ source_url(sub) }}" target="_blank" rel="noopener"
+     title="Открыть на сайте">↗</a>
   <span class="badge {{ sub.status.value }}">{{ sub_status_ru[sub.status] }}</span></h1>
 <p class="muted">
   Источник: {{ sub.source }} / {{ sub.slug }} · Папка: {{ sub.folder }}
