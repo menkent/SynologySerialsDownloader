@@ -23,6 +23,12 @@ class SynologyError(Exception):
     pass
 
 
+class DuplicateTaskError(SynologyError):
+    """DS отказался создавать задачу, потому что такой торрент уже добавлен
+    (error_detail == 'torrent_duplicate'). Для нас это не ошибка: серия уже
+    стоит на закачке."""
+
+
 class SynologyClient:
     """Минимальный клиент DSM Web API: логин, Download Station, FileStation."""
 
@@ -85,7 +91,16 @@ class SynologyClient:
             "create_list": "false",
         }
         files = {"torrent": (filename, torrent, "application/x-bittorrent")}
-        resp = await self._call("/webapi/entry.cgi", data=data, files=files)
+        try:
+            resp = await self._call("/webapi/entry.cgi", data=data, files=files)
+        except SynologyError as e:
+            # DS не создаёт вторую задачу для уже добавленного торрента.
+            if "torrent_duplicate" in str(e):
+                raise DuplicateTaskError(str(e)) from e
+            raise
+        # Иногда DS отвечает success, но кладёт ошибку по файлу внутрь data.
+        if "torrent_duplicate" in json.dumps(resp, ensure_ascii=False):
+            raise DuplicateTaskError(f"torrent_duplicate: {resp}")
         task_ids = resp.get("task_id") or []
         if not task_ids:
             raise SynologyError(f"DS не вернул id задачи: {resp}")

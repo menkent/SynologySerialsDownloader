@@ -4,7 +4,8 @@ import logging
 from .models import Episode, EpisodeStatus, Subscription, SubscriptionStatus, now_iso
 from .sources.base import Source
 from .storage import Store
-from .synology import SynologyClient, SynologyError, normalize_destination
+from .synology import (DuplicateTaskError, SynologyClient, SynologyError,
+                       normalize_destination)
 
 log = logging.getLogger(__name__)
 
@@ -93,6 +94,17 @@ class Engine:
                 sub.slug, sub.season, ep.number, settings.quality_priority)
             await self.synology.ensure_folder(destination)
             task_id = await self.synology.create_task(torrent, filename, destination)
+        except DuplicateTaskError:
+            # Торрент уже в Download Station (добавлен раньше или вручную) —
+            # считаем серию поставленной на закачку. Своего ds_task_id у нас
+            # нет, поэтому прогресс по ней DS-поллер не отслеживает.
+            async with self.store.lock:
+                ep.status = EpisodeStatus.queued
+                ep.quality = quality
+                ep.error = None
+                ep.updated_at = now_iso()
+                await self.store.save()
+            return
         except Exception as e:
             async with self.store.lock:
                 ep.status = EpisodeStatus.error
