@@ -161,17 +161,39 @@ class Engine:
         queued = [(sub, ep)
                   for sub in self.store.state.subscriptions
                   for ep in sub.episodes
-                  if ep.status == EpisodeStatus.queued and ep.ds_task_id]
+                  if ep.status == EpisodeStatus.queued]
         if not queued:
             return
+
+        # Самовосстановление: серии без ds_task_id (например, поставленные в
+        # очередь как дубликат старой версией) поллить нечем — привязываем уже
+        # существующую задачу DS по имени раздачи, дальше опрос идёт как обычно.
+        orphans = [(s, e) for s, e in queued if not e.ds_task_id]
+        if orphans:
+            try:
+                all_tasks = await self.synology.list_tasks()
+            except SynologyError as e:
+                all_tasks = []
+                log.warning("Не удалось получить список задач DS для привязки: %s", e)
+            async with self.store.lock:
+                for sub, ep in orphans:
+                    tid = _match_ds_task(all_tasks, sub.slug, sub.season, ep.number)
+                    if tid:
+                        ep.ds_task_id = tid
+                        ep.updated_at = now_iso()
+                await self.store.save()
+
+        pollable = [(s, e) for s, e in queued if e.ds_task_id]
+        if not pollable:
+            return
         try:
-            tasks = await self.synology.get_tasks([ep.ds_task_id for _, ep in queued])
+            tasks = await self.synology.get_tasks([ep.ds_task_id for _, ep in pollable])
         except SynologyError as e:
             log.warning("Опрос DS не удался: %s", e)
             return
 
         async with self.store.lock:
-            for sub, ep in queued:
+            for sub, ep in pollable:
                 task = tasks.get(ep.ds_task_id)
                 if task is None:
                     ep.status = EpisodeStatus.error

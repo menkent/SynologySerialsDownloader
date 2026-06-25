@@ -41,7 +41,10 @@
         {% elif ep.status.value == "downloaded" %}100%{% else %}—{% endif %}</td>
     <td>{% if ep.status.value == "error" %}
       <form class="inline" method="post" action="/subscriptions/{{ sub.id }}/episodes/{{ ep.number }}/retry">
-        <button>Повторить</button></form>{% endif %}</td>
+        <button>Повторить</button></form>{% endif %}
+      {% if ep.status.value != "downloaded" %}
+      <form class="inline" method="post" action="/subscriptions/{{ sub.id }}/episodes/{{ ep.number }}/mark-downloaded">
+        <button title="Серия уже скачана в Download Station">Отметить скачанной</button></form>{% endif %}</td>
   </tr>
   {% else %}
   <tr><td colspan="5" class="muted">Серии ещё не найдены — нажмите «Проверить сейчас».</td></tr>

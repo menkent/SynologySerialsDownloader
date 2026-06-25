@@ -5,7 +5,7 @@ from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from ..models import (EpisodeStatus, Subscription, SubscriptionStatus)
+from ..models import (EpisodeStatus, Subscription, SubscriptionStatus, now_iso)
 
 router = APIRouter()
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
@@ -112,6 +112,24 @@ async def retry_episode(request: Request, sub_id: str, number: int):
     if ep is None:
         raise HTTPException(404, "Эпизод не найден")
     asyncio.create_task(request.app.state.engine.retry_episode(sub, ep))
+    return RedirectResponse(f"/subscriptions/{sub_id}", status_code=303)
+
+
+@router.post("/subscriptions/{sub_id}/episodes/{number}/mark-downloaded")
+async def mark_episode_downloaded(request: Request, sub_id: str, number: int):
+    """Ручной фолбэк: серия по факту скачана в DS, но мы не смогли это
+    подтвердить автоматически — помечаем «Скачан» вручную."""
+    sub = _get_sub(request, sub_id)
+    ep = sub.episode(number)
+    if ep is None:
+        raise HTTPException(404, "Эпизод не найден")
+    store = request.app.state.store
+    async with store.lock:
+        ep.status = EpisodeStatus.downloaded
+        ep.progress = 100.0
+        ep.error = None
+        ep.updated_at = now_iso()
+        await store.save()
     return RedirectResponse(f"/subscriptions/{sub_id}", status_code=303)
 
 
