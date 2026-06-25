@@ -46,7 +46,7 @@ async def main() -> None:
         eps = await src.list_episodes(slug, season)
         print(f"2) {slug}, сезон {season}: серии {[e.number for e in eps]}")
 
-        codes = await src._episode_codes(slug)
+        codes = await src._episode_codes(slug, season)
         code = next((c for s, e, c in codes if s == season and e == episode), None)
         if code is None:
             print(f"3) серия E{episode:02d} не найдена — дальше идти некуда")

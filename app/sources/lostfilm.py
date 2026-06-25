@@ -111,12 +111,12 @@ class LostfilmSource:
     # --- Source protocol ------------------------------------------------
 
     async def list_episodes(self, slug: str, season: int) -> list[FoundEpisode]:
-        codes = await self._episode_codes(slug)
+        codes = await self._episode_codes(slug, season)
         return [FoundEpisode(number=ep) for s, ep, _code in codes if s == season]
 
     async def fetch_torrent(self, slug: str, season: int, number: int,
                             quality_priority: list[str]) -> tuple[bytes, str, str]:
-        codes = await self._episode_codes(slug)
+        codes = await self._episode_codes(slug, season)
         code = next((c for s, ep, c in codes if s == season and ep == number), None)
         if code is None:
             raise SourceError(f"Серия S{season:02d}E{number:02d} не найдена на странице сериала")
@@ -151,9 +151,17 @@ class LostfilmSource:
 
     # --- парсинг ----------------------------------------------------------
 
-    async def _episode_codes(self, slug: str) -> list[tuple[int, int, str]]:
-        """[(сезон, серия, код PlayEpisode), …] для всех вышедших серий."""
-        page = await self._get(f"/series/{slug}/seasons")
+    async def _episode_codes(self, slug: str, season: int) -> list[tuple[int, int, str]]:
+        """[(сезон, серия, код PlayEpisode), …] для вышедших серий сезона.
+
+        Берём постраничный URL /season_<N>, а не общий /seasons: у идущих
+        сейчас сериалов «Гид по сериям» (/seasons) приходит пустым (только
+        заглушка «0 сезон»), а кнопки PlayEpisode живут на странице сезона.
+        В коде PlayEpisode('SSSNNNEEE') средние 3 цифры — сезон, последние 3 —
+        серия, так что сезон определяется однозначно.
+        """
+        path = f"/series/{slug}/season_{season}"
+        page = await self._get(path)
         soup = BeautifulSoup(page.text, "html.parser")
         result = []
         for el in soup.select('[onclick*="PlayEpisode("]'):
@@ -163,11 +171,15 @@ class LostfilmSource:
             code = m.group(1)
             if len(code) < 7:
                 continue
-            result.append((int(code[-6:-3]), int(code[-3:]), code))
+            s, ep = int(code[-6:-3]), int(code[-3:])
+            # ep == 999 — псевдосерия «торрент всего сезона», а не настоящий эпизод.
+            if ep == 999:
+                continue
+            result.append((s, ep, code))
         if not result:
             raise SourceError(
-                f"На странице /series/{slug}/seasons не нашлось ни одной серии — "
-                "проверьте slug или вёрстка сайта изменилась")
+                f"На странице {path} не нашлось ни одной серии — "
+                "проверьте slug/номер сезона или вёрстка сайта изменилась")
         return result
 
     @staticmethod
