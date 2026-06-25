@@ -96,11 +96,12 @@ class Engine:
             task_id = await self.synology.create_task(torrent, filename, destination)
         except DuplicateTaskError:
             # Торрент уже в Download Station (добавлен раньше или вручную) —
-            # считаем серию поставленной на закачку. Своего ds_task_id у нас
-            # нет, поэтому прогресс по ней DS-поллер не отслеживает.
+            # считаем серию скачанной (терминальный статус). Своего task_id DS
+            # в этом случае не отдаёт, отслеживать прогресс всё равно нечем.
             async with self.store.lock:
-                ep.status = EpisodeStatus.queued
+                ep.status = EpisodeStatus.downloaded
                 ep.quality = quality
+                ep.progress = 100.0
                 ep.error = None
                 ep.updated_at = now_iso()
                 await self.store.save()
