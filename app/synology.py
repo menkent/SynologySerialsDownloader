@@ -106,24 +106,16 @@ class SynologyClient:
             raise SynologyError(f"DS не вернул id задачи: {resp}")
         return task_ids[0]
 
-    async def get_tasks(self, ids: list[str]) -> dict[str, dict]:
-        """Статусы задач по id. Отсутствующие в ответе id — задача удалена."""
-        if not ids:
-            return {}
-        resp = await self._call("/webapi/DownloadStation/task.cgi", params={
-            "api": "SYNO.DownloadStation.Task", "version": "1", "method": "getinfo",
-            "id": ",".join(ids), "additional": "transfer",
-        })
-        return {t["id"]: t for t in resp.get("tasks", [])}
-
     async def list_tasks(self) -> list[dict]:
-        """Все задачи Download Station (id, title, status, …).
+        """Все задачи Download Station (id, title, status + transfer-прогресс).
 
-        Нужно, чтобы при ошибке torrent_duplicate найти уже существующую
-        задачу по имени раздачи и подцепить её id для отслеживания прогресса."""
+        Берём весь список (method=list), а не getinfo по конкретным id:
+        getinfo атомарен и падает целиком с code 404 (Invalid task id), если
+        хотя бы один переданный id протух. Из полного списка мы сами достаём
+        нужные задачи по id и можем пересопоставить протухшие по имени."""
         resp = await self._call("/webapi/DownloadStation/task.cgi", params={
             "api": "SYNO.DownloadStation.Task", "version": "1", "method": "list",
-            "additional": "detail",
+            "additional": "transfer",
         })
         return resp.get("tasks", [])
 

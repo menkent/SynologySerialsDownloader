@@ -165,39 +165,28 @@ class Engine:
         if not queued:
             return
 
-        # Самовосстановление: серии без ds_task_id (например, поставленные в
-        # очередь как дубликат старой версией) поллить нечем — привязываем уже
-        # существующую задачу DS по имени раздачи, дальше опрос идёт как обычно.
-        orphans = [(s, e) for s, e in queued if not e.ds_task_id]
-        if orphans:
-            try:
-                all_tasks = await self.synology.list_tasks()
-            except SynologyError as e:
-                all_tasks = []
-                log.warning("Не удалось получить список задач DS для привязки: %s", e)
-            async with self.store.lock:
-                for sub, ep in orphans:
-                    tid = _match_ds_task(all_tasks, sub.slug, sub.season, ep.number)
-                    if tid:
-                        ep.ds_task_id = tid
-                        ep.updated_at = now_iso()
-                await self.store.save()
-
-        pollable = [(s, e) for s, e in queued if e.ds_task_id]
-        if not pollable:
-            return
+        # Весь список задач одним запросом. getinfo по конкретным id отпадает:
+        # он атомарен и валит весь опрос (code 404), если хоть один сохранённый
+        # id протух — тогда не обновлялась НИ одна серия.
         try:
-            tasks = await self.synology.get_tasks([ep.ds_task_id for _, ep in pollable])
+            all_tasks = await self.synology.list_tasks()
         except SynologyError as e:
             log.warning("Опрос DS не удался: %s", e)
             return
+        by_id = {t.get("id"): t for t in all_tasks}
 
         async with self.store.lock:
-            for sub, ep in pollable:
-                task = tasks.get(ep.ds_task_id)
+            for sub, ep in queued:
+                task = by_id.get(ep.ds_task_id) if ep.ds_task_id else None
+                # id нет или протух — ищем актуальную задачу по имени раздачи.
+                if task is None:
+                    tid = _match_ds_task(all_tasks, sub.slug, sub.season, ep.number)
+                    if tid:
+                        ep.ds_task_id = tid
+                        task = by_id.get(tid)
                 if task is None:
                     ep.status = EpisodeStatus.error
-                    ep.error = "Задача исчезла из Download Station"
+                    ep.error = "Задача не найдена в Download Station"
                 elif task.get("status") in _DS_DONE:
                     ep.status = EpisodeStatus.downloaded
                     ep.progress = 100.0
