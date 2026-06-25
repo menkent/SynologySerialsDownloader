@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import re
 
 from .models import Episode, EpisodeStatus, Subscription, SubscriptionStatus, now_iso
 from .sources.base import Source
@@ -12,6 +13,22 @@ log = logging.getLogger(__name__)
 DS_POLL_SECONDS = 300
 # Задача DS считается докачанной и в finished, и в seeding (файлы уже на месте).
 _DS_DONE = {"finished", "seeding"}
+
+
+def _match_ds_task(tasks: list[dict], slug: str, season: int, number: int) -> str | None:
+    """id уже существующей DS-задачи для серии, найденной по имени раздачи.
+
+    Имя BT-задачи в DS — это имя раздачи (обычно вида
+    House.of.the.Dragon.S03E01.…). Матчим по нормализованному слагу сериала
+    и якорю SxxEyy: разделители (., _, -, пробелы) выкидываем, регистр
+    игнорируем. Не нашли — None (вызывающий решает, что делать)."""
+    tag = f"s{season:02d}e{number:02d}"
+    slug_norm = re.sub(r"[^a-z0-9]", "", slug.lower())
+    for t in tasks:
+        title_norm = re.sub(r"[^a-z0-9]", "", (t.get("title") or "").lower())
+        if tag in title_norm and slug_norm and slug_norm in title_norm:
+            return t.get("id")
+    return None
 
 
 class Engine:
@@ -95,13 +112,25 @@ class Engine:
             await self.synology.ensure_folder(destination)
             task_id = await self.synology.create_task(torrent, filename, destination)
         except DuplicateTaskError:
-            # Торрент уже в Download Station (добавлен раньше или вручную) —
-            # считаем серию скачанной (терминальный статус). Своего task_id DS
-            # в этом случае не отдаёт, отслеживать прогресс всё равно нечем.
+            # Торрент уже в Download Station (добавлен раньше или вручную).
+            # Пытаемся подцепить существующую задачу — тогда обычный поллер
+            # доведёт статус до правды. Не нашли — считаем серию скачанной
+            # (fallback: своего task_id для отслеживания у нас нет).
+            task_id = None
+            try:
+                task_id = _match_ds_task(await self.synology.list_tasks(),
+                                         sub.slug, sub.season, ep.number)
+            except SynologyError as e:
+                log.warning("Дубликат %s S%02dE%02d: не удалось получить список "
+                            "задач DS: %s", sub.slug, sub.season, ep.number, e)
             async with self.store.lock:
-                ep.status = EpisodeStatus.downloaded
+                if task_id:
+                    ep.status = EpisodeStatus.queued
+                    ep.ds_task_id = task_id
+                else:
+                    ep.status = EpisodeStatus.downloaded
+                    ep.progress = 100.0
                 ep.quality = quality
-                ep.progress = 100.0
                 ep.error = None
                 ep.updated_at = now_iso()
                 await self.store.save()

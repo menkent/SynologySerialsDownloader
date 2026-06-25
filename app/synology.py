@@ -116,6 +116,17 @@ class SynologyClient:
         })
         return {t["id"]: t for t in resp.get("tasks", [])}
 
+    async def list_tasks(self) -> list[dict]:
+        """Все задачи Download Station (id, title, status, …).
+
+        Нужно, чтобы при ошибке torrent_duplicate найти уже существующую
+        задачу по имени раздачи и подцепить её id для отслеживания прогресса."""
+        resp = await self._call("/webapi/DownloadStation/task.cgi", params={
+            "api": "SYNO.DownloadStation.Task", "version": "1", "method": "list",
+            "additional": "detail",
+        })
+        return resp.get("tasks", [])
+
     async def delete_tasks(self, ids: list[str]) -> None:
         if not ids:
             return
