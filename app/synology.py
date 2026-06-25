@@ -42,7 +42,9 @@ class SynologyClient:
         await self._client.aclose()
 
     async def _login(self) -> None:
-        r = await self._client.get("/webapi/auth.cgi", params={
+        # POST, а не GET: passwd уходит в теле формы, а не в query-строке —
+        # иначе он светится в access-логах DSM / прокси.
+        r = await self._client.post("/webapi/auth.cgi", data={
             "api": "SYNO.API.Auth", "version": "6", "method": "login",
             "account": self.username, "passwd": self.password,
             "session": "DownloadStation", "format": "sid",
