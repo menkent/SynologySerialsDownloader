@@ -12,3 +12,10 @@ services:
       SYNO_PASSWORD: "***"
     volumes:
       - /volume1/homes/serials-bot/SynologySerialsDownloader:/data
+    # Ротация логов: json-file по умолчанию растёт без предела и может забить
+    # диск. Ограничиваем 3 файлами по 10 МБ (итого ~30 МБ, по кругу).
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
