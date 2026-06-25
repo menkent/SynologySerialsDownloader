@@ -14,6 +14,9 @@ from .web.routes import router, templates
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+# httpx на INFO пишет каждый запрос с полным URL — это шум, и (хуже) светит
+# в логах passwd и _sid из login-URL. Оставляем только его warning'и.
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
 @asynccontextmanager
